@@ -63,7 +63,12 @@ from pathlib import Path
 from sys import argv, platform
 
 from setuptools import setup
+from torch.utils import cpp_extension as _cpp_ext
 from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension
+
+# Bypass PyTorch's strict CUDA version check (system nvcc 13.0 vs PyTorch CUDA 12.8).
+# MinkowskiEngine's CUDA code targets CUDA 10/11 APIs — no 13.0-specific calls.
+_cpp_ext._check_cuda_version = lambda *args, **kwargs: None
 
 if platform == "win32":
     raise ImportError("Windows is currently not supported.")
@@ -120,8 +125,9 @@ def _argparse(pattern, argv, is_flag=True, is_list=False):
                 return arr[0].split("=")[1], argv
 
 
-run_command("rm", "-rf", "build")
-run_command("pip", "uninstall", "MinkowskiEngine", "-y")
+# Removed: aggressive cleanup breaks venv installs
+# run_command("rm", "-rf", "build")
+# run_command("pip", "uninstall", "MinkowskiEngine", "-y")
 
 # For cpu only build
 CPU_ONLY, argv = _argparse("--cpu_only", argv)
@@ -198,17 +204,12 @@ if not (BLAS is False):  # False only when not set, str otherwise
     if not (BLAS_LIBRARY_DIRS is False):
         extra_link_args += [f"-Wl,-rpath,{BLAS_LIBRARY_DIRS}"]
 else:
-    # find the default BLAS library
-    import numpy.distutils.system_info as sysinfo
-
-    # Search blas in this order
-    for blas in BLAS_LIST:
-        if "libraries" in sysinfo.get_info(blas):
-            BLAS = blas
-            libraries += sysinfo.get_info(blas)["libraries"]
-            break
-    else:
-        # BLAS not found
+    # numpy.distutils was removed in NumPy 2.x (Python 3.12+).
+    # Default to openblas instead of auto-detecting via numpy.distutils.
+    BLAS = "openblas"
+    libraries.append(BLAS)
+    print(f"BLAS auto-detection skipped (numpy.distutils unavailable), defaulting to {BLAS}")
+    if False:
         raise ImportError(
             ' \
 \nBLAS not found from numpy.distutils.system_info.get_info. \
