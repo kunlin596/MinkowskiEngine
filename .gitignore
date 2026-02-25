@@ -9,3 +9,6 @@ build/
 objs/
 dist/
 MinkowskiEngine.egg-info/
+local_include/
+local_openblas/
+local_runtime_lib/
